@@ -1,5 +1,11 @@
 # Superpowers
 
+> **This is a fork of [obra/superpowers](https://github.com/obra/superpowers) with two additional skills for knowledge compounding:**
+> - **`capturing-knowledge`** — After solving a non-trivial problem, documents the solution to `docs/solutions/` while context is fresh
+> - **`refreshing-knowledge`** — Periodically reviews `docs/solutions/` against the current codebase and applies Keep / Update / Consolidate / Replace / Delete to keep it accurate
+>
+> These skills wire into the existing workflow: `brainstorming`, `writing-plans`, and `systematic-debugging` automatically consult `docs/solutions/` before starting work; `finishing-a-development-branch` prompts to document learnings before merging.
+
 Superpowers is a complete software development methodology for your coding agents, built on top of a set of composable skills and some initial instructions that make sure your agent uses them.
 
 
@@ -35,30 +41,12 @@ Installation differs by harness. If you use more than one, install Superpowers s
 
 ### Claude Code
 
-Superpowers is available via the [official Claude plugin marketplace](https://claude.com/plugins/superpowers)
-
-#### Official Marketplace
-
-- Install the plugin from Anthropic's official marketplace:
+- Register this repository as a marketplace source:
 
   ```bash
-  /plugin install superpowers@claude-plugins-official
-  ```
+  /plugin marketplace add siyu1231/superpowers
 
-#### Superpowers Marketplace
-
-The Superpowers marketplace provides Superpowers and some other related plugins for Claude Code.
-
-- Register the marketplace:
-
-  ```bash
-  /plugin marketplace add obra/superpowers-marketplace
-  ```
-
-- Install the plugin from this marketplace:
-
-  ```bash
-  /plugin install superpowers@superpowers-marketplace
+  /plugin install superpowers@superpowers
   ```
 
 ### Antigravity
@@ -66,7 +54,7 @@ The Superpowers marketplace provides Superpowers and some other related plugins 
 Install Superpowers as a plugin from this repository:
 
 ```bash
-agy plugin install https://github.com/obra/superpowers
+agy plugin install https://github.com/siyu1231/superpowers
 ```
 
 Antigravity runs the plugin's session-start hook, so Superpowers is active from
@@ -100,26 +88,32 @@ Superpowers is available via the [official Codex plugin marketplace](https://git
 
 ### Cursor
 
-- In Cursor Agent chat, install from marketplace:
+- In Cursor Agent chat, run:
 
   ```text
-  /add-plugin superpowers
+  /plugin marketplace add siyu1231/superpowers
+  /plugin install superpowers@superpowers
   ```
-
-- Or search for "superpowers" in the plugin marketplace.
 
 ### Factory Droid
 
 - Register the marketplace:
 
   ```bash
-  droid plugin marketplace add https://github.com/obra/superpowers
+  droid plugin marketplace add https://github.com/siyu1231/superpowers
   ```
 
 - Install the plugin:
 
   ```bash
-  droid plugin install superpowers@superpowers
+  /plugin install superpowers@superpowers
+  ```
+
+Alternatively, clone the repo locally and pass `--plugin-dir` on startup:
+
+  ```bash
+  git clone https://github.com/siyu1231/superpowers.git ~/superpowers
+  claude --plugin-dir ~/superpowers
   ```
 
 ### Gemini CLI
@@ -127,7 +121,7 @@ Superpowers is available via the [official Codex plugin marketplace](https://git
 - Install the extension:
 
   ```bash
-  gemini extensions install https://github.com/obra/superpowers
+  gemini extensions install https://github.com/siyu1231/superpowers
   ```
 
 - Update later:
@@ -136,18 +130,31 @@ Superpowers is available via the [official Codex plugin marketplace](https://git
   gemini extensions update superpowers
   ```
 
+### OpenCode
+
+OpenCode uses its own plugin install; install Superpowers separately even if you
+already use it in another harness.
+
+Edit `opencode.json` and add:
+
+  ```json
+  {
+    "plugin": ["superpowers@git+https://github.com/siyu1231/superpowers.git"]
+  }
+  ```
+
 ### GitHub Copilot CLI
 
 - Register the marketplace:
 
   ```bash
-  copilot plugin marketplace add obra/superpowers-marketplace
+  copilot plugin marketplace add siyu1231/superpowers
   ```
 
 - Install the plugin:
 
   ```bash
-  copilot plugin install superpowers@superpowers-marketplace
+  copilot plugin install superpowers@superpowers
   ```
 
 ### Kimi Code
@@ -227,6 +234,10 @@ The Pi package loads the Superpowers skills and a small extension that injects t
 **Debugging**
 - **systematic-debugging** - 4-phase root cause process (includes root-cause-tracing, defense-in-depth, condition-based-waiting techniques)
 - **verification-before-completion** - Ensure it's actually fixed
+
+**Knowledge**
+- **capturing-knowledge** - Document solved problems to `docs/solutions/` with two-track system (bug vs knowledge), overlap detection, and CONCEPTS.md vocabulary capture
+- **refreshing-knowledge** - Maintain `docs/solutions/` accuracy over time with Keep / Update / Consolidate / Replace / Delete actions
 
 **Collaboration** 
 - **brainstorming** - Socratic design refinement
