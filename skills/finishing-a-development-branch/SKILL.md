@@ -9,7 +9,7 @@ description: Use when implementation is complete, all tests pass, and you need t
 
 Guide completion of development work by presenting clear options and handling chosen workflow.
 
-**Core principle:** Verify tests → Detect environment → Present options → Execute choice → Clean up.
+**Core principle:** Verify tests → Document learnings → Detect environment → Present options → Execute choice → Clean up.
 
 **Announce at start:** "I'm using the finishing-a-development-branch skill to complete this work."
 
@@ -36,6 +36,16 @@ Cannot proceed with merge/PR until tests pass.
 Stop. Don't proceed to Step 2.
 
 **If tests pass:** Continue to Step 2.
+
+### Step 1.5: Document Learnings
+
+**Before integrating, check whether any non-trivial problem was solved on this branch.**
+
+If yes — a bug root-caused, a tricky integration worked out, a non-obvious pattern established — use **`superpowers:capturing-knowledge`** to document it now, while the context is still fresh. Once the branch is merged and the session moves on, the institutional knowledge fades.
+
+Skip this step silently if:
+- The branch only contains mechanical changes (dependency updates, copy edits, config tweaks)
+- No new root causes were discovered
 
 ### Step 2: Detect Environment
 

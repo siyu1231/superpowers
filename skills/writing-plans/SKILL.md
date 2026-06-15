@@ -22,6 +22,16 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 If the spec covers multiple independent subsystems, it should have been broken into sub-project specs during brainstorming. If it wasn't, suggest breaking this into separate plans — one per subsystem. Each plan should produce working, testable software on its own.
 
+## Knowledge Base Check
+
+Before defining tasks, check `docs/solutions/` if it exists in this project.
+
+- Grep by module name, component, feature area, or technology being touched
+- Documented solutions surface: past bugs to avoid repeating, known patterns for this area, architectural decisions already made, workflow guidance that applies
+- Fold relevant findings into the plan's Architecture section or as notes on affected tasks
+
+Skip silently if `docs/solutions/` does not exist.
+
 ## File Structure
 
 Before defining tasks, map out which files will be created or modified and what each one is responsible for. This is where decomposition decisions get locked in.

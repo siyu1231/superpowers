@@ -21,7 +21,7 @@ Every project goes through this process. A todo list, a single-function utility,
 
 You MUST create a task for each of these items and complete them in order:
 
-1. **Explore project context** — check files, docs, recent commits
+1. **Explore project context** — check files, docs, recent commits; if `docs/solutions/` exists, grep it for relevant documented patterns, past bugs, and architectural decisions in the problem area
 2. **Offer the visual companion just-in-time** — NOT upfront. The first time a question would genuinely be clearer shown than described, offer it then (its own message); on approval its browser tab opens for you. If no visual question ever arises, never offer it. See the Visual Companion section below.
 3. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
 4. **Propose 2-3 approaches** — with trade-offs and your recommendation
@@ -96,6 +96,7 @@ digraph brainstorming {
 **Working in existing codebases:**
 
 - Explore the current structure before proposing changes. Follow existing patterns.
+- If `docs/solutions/` exists: search it for documented solutions, architectural decisions, and known pitfalls in the area being changed. Fold relevant findings into approach proposals and the design.
 - Where existing code has problems that affect the work (e.g., a file that's grown too large, unclear boundaries, tangled responsibilities), include targeted improvements as part of the design - the way a good developer improves code they're working in.
 - Don't propose unrelated refactoring. Stay focused on what serves the current goal.
 

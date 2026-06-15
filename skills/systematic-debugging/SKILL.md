@@ -51,6 +51,11 @@ You MUST complete each phase before proceeding to the next.
 
 **BEFORE attempting ANY fix:**
 
+0. **Check `docs/solutions/` for similar problems** (if the directory exists)
+   - Grep by error message keywords, module name, or `problem_type`
+   - A previously documented solution can collapse investigation from hours to minutes
+   - If a match is found, use it as a starting hypothesis — still verify it applies
+
 1. **Read Error Messages Carefully**
    - Don't skip past errors or warnings
    - They often contain the exact solution
@@ -286,6 +291,7 @@ These techniques are part of systematic debugging and available in this director
 **Related skills:**
 - **superpowers:test-driven-development** - For creating failing test case (Phase 4, Step 1)
 - **superpowers:verification-before-completion** - Verify fix worked before claiming success
+- **superpowers:capturing-knowledge** - After the fix is confirmed, document the root cause and solution while context is fresh
 
 ## Real-World Impact
 
