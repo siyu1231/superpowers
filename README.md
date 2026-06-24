@@ -6,6 +6,8 @@
 >
 > These skills wire into the existing workflow: `brainstorming`, `writing-plans`, and `systematic-debugging` automatically consult `docs/solutions/` before starting work; `finishing-a-development-branch` prompts to document learnings before merging.
 
+[中文版本](README.zh-CN.md)
+
 Superpowers is a complete software development methodology for your coding agents, built on top of a set of composable skills and some initial instructions that make sure your agent uses them.
 
 
