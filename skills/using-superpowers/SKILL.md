@@ -97,6 +97,7 @@ These thoughts mean STOP—you're rationalizing:
 | "I'll just do this one thing first" | Check BEFORE doing anything. |
 | "This feels productive" | Undisciplined action wastes time. Skills prevent this. |
 | "I know what that means" | Knowing the concept ≠ using the skill. Invoke it. |
+| "I'll document this later" | Context fades. Capture while it's fresh or it won't happen. |
 
 ## Skill Priority
 
@@ -104,6 +105,7 @@ When multiple skills could apply, use this order:
 
 1. **Process skills first** (brainstorming, systematic-debugging) - these determine HOW to approach the task
 2. **Implementation skills second** (frontend-design, mcp-builder) - these guide execution
+3. **Knowledge skills at key milestones** (capturing-knowledge, refreshing-knowledge) - when a bug is fixed, a non-trivial problem is solved, or a branch is being finished, capture the learning. Before starting a new plan or design, check `docs/solutions/` for relevant recorded knowledge.
 
 "Let's build X" → brainstorming first, then implementation skills.
 "Fix this bug" → systematic-debugging first, then domain-specific skills.
