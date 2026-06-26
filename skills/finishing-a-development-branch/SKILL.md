@@ -39,13 +39,21 @@ Stop. Don't proceed to Step 2.
 
 ### Step 1.5: Document Learnings
 
-**Before integrating, check whether any non-trivial problem was solved on this branch.**
+**Before integrating, you MUST make an explicit decision about knowledge capture.**
 
-If yes — a bug root-caused, a tricky integration worked out, a non-obvious pattern established — use **`superpowers:capturing-knowledge`** to document it now, while the context is still fresh. Once the branch is merged and the session moves on, the institutional knowledge fades.
+Review the work on this branch and answer:
 
-Skip this step silently if:
-- The branch only contains mechanical changes (dependency updates, copy edits, config tweaks)
-- No new root causes were discovered
+> Did this branch solve any non-trivial problem? For example:
+> - A bug was root-caused and fixed
+> - A tricky integration was worked out
+> - A non-obvious pattern or approach was established
+> - A design decision was made that future contributors should understand
+
+**If YES:** Use `superpowers:capturing-knowledge` to document it now, while the context is still fresh. Once the branch is merged and the session moves on, the institutional knowledge fades.
+
+**If NO:** State explicitly why — for example "mechanical changes only (dependency bump)" or "one-line typo fix" — then continue.
+
+**You may NOT proceed to Step 2 without making this decision explicitly.** Silently skipping is not allowed.
 
 ### Step 2: Detect Environment
 
@@ -230,6 +238,10 @@ git worktree prune  # Self-healing: clean up any stale registrations
 - **Problem:** Accidentally delete work
 - **Fix:** Require typed "discard" confirmation
 
+**Silently skipping knowledge capture**
+- **Problem:** Assume changes are "too simple" without checking
+- **Fix:** Step 1.5 now requires explicit yes/no decision with brief justification
+
 ## Red Flags
 
 **Never:**
@@ -240,6 +252,8 @@ git worktree prune  # Self-healing: clean up any stale registrations
 - Remove a worktree before confirming merge success
 - Clean up worktrees you didn't create (provenance check)
 - Run `git worktree remove` from inside the worktree
+- Proceed past Step 1.5 without explicitly stating whether knowledge was captured
+- Silently decide "not worth documenting" without justification
 
 **Always:**
 - Verify tests before offering options
