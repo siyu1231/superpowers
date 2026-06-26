@@ -217,6 +217,21 @@ You MUST complete each phase before proceeding to the next.
 
    This is NOT a failed hypothesis - this is a wrong architecture.
 
+### Phase 4.5: Capture the Solution
+
+**After the fix is confirmed, make an explicit decision about knowledge capture.**
+
+Ask yourself:
+- Was the root cause non-obvious?
+- Did the investigation surface patterns others would benefit from knowing?
+- Is there a `docs/solutions/` directory where this belongs?
+
+**If the answer to any of these is yes**, use `superpowers:capturing-knowledge` to document the root cause and solution while context is fresh.
+
+**If the answer to all is no**, note briefly why (e.g., "trivial typo, self-evident fix") and continue.
+
+**This step is NOT optional to skip silently.** You must at minimum think about it and make a conscious decision.
+
 ## Red Flags - STOP and Follow Process
 
 If you catch yourself thinking:
@@ -274,7 +289,9 @@ If you catch yourself thinking:
 If systematic investigation reveals issue is truly environmental, timing-dependent, or external:
 
 1. You've completed the process
-2. Document what you investigated
+2. Document what you investigated — if the investigation itself was instructive, use
+   `superpowers:capturing-knowledge` to record the diagnostic approach, even when
+   no definitive root cause was found
 3. Implement appropriate handling (retry, timeout, error message)
 4. Add monitoring/logging for future investigation
 
