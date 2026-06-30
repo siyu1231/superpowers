@@ -1,6 +1,6 @@
 ---
 name: clean-context-verification
-description: Use when a feature involves LLM output, natural-language generation, or subjective quality — dispatches a subagent with clean context (only correct expectations, no implementation details) to verify output quality
+description: Called by regression-guard when uncertainty_verification=true — dispatches a subagent with clean context (only correct expectations, no implementation details) to verify LLM output, natural-language generation, or subjective quality
 ---
 
 # Clean Context Verification

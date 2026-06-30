@@ -1,6 +1,6 @@
 ---
 name: regression-guard
-description: Use when a feature has passed all verification and needs its test commands persisted as regression scripts, or before committing or creating PRs to run accumulated regression tests
+description: Called by subagent-driven-development and finishing-a-development-branch — runs CLI-level regression cases with ON/OFF toggle comparison, dispatches debug subagents on failure, and accumulates cases into the regression library
 ---
 
 # Regression Guard
@@ -92,6 +92,8 @@ Current Feature Verification mode?
 ```
 
 **Each case gets at most 3 debug-fix-retry rounds.** After 3 failed rounds on a single case, STOP and report to your human partner. Do not attempt round 4.
+
+**Note on the diagram:** `TOGGLE=0` and `TOGGLE=1` in the verification loop are placeholders. Each case defines its own toggle environment variable via the `toggle` field. When `case.toggle` is `FEATURE_X`, execute `FEATURE_X=0 <command>` and `FEATURE_X=1 <command>`.
 
 ## Two Modes
 
