@@ -55,6 +55,45 @@ Review the work on this branch and answer:
 
 **You may NOT proceed to Step 2 without making this decision explicitly.** Silently skipping is not allowed.
 
+### Step 1.6: Full Regression Guard (code projects only)
+
+**Check project type:** If this is not a code project, or if `regression/cases.json` does not exist, skip this step and continue to Step 2.
+
+**If this is a code project with an existing case library:**
+
+```bash
+if [ -f regression/cases.json ]; then
+  echo "Case library found. Running full regression..."
+else
+  echo "No regression case library found. Skipping regression guard."
+fi
+```
+
+If `regression/cases.json` exists:
+
+1. Load `superpowers:regression-guard` skill
+2. Run **full-regression mode**: execute every case in the library
+3. On failure: dispatch debug subagent → fix → re-verify → loop (max 3 rounds per case)
+4. Report results: passed, failed-and-fixed, still-failing
+
+**If any case still fails after 3 rounds:**
+
+```
+Regression guard found <N> case(s) still failing after 3 fix attempts:
+
+<case-id>: <case-name>
+  Command: <command>
+  Expected: <expect.on>
+  Actual: <actual output>
+
+Cannot proceed with merge/PR while regression cases fail.
+Fix these manually or adjust the case expectations to match the current behavior.
+```
+
+Stop. Do not proceed to Step 2 until all regression cases pass.
+
+**If all cases pass (or were fixed):** Continue to Step 2.
+
 ### Step 2: Detect Environment
 
 **Determine workspace state before presenting options:**
@@ -242,6 +281,10 @@ git worktree prune  # Self-healing: clean up any stale registrations
 - **Problem:** Assume changes are "too simple" without checking
 - **Fix:** Step 1.5 now requires explicit yes/no decision with brief justification
 
+**Skipping full regression guard**
+- **Problem:** Merge without running accumulated regression cases, regressions go undetected
+- **Fix:** Step 1.6 runs the full regression case library; only proceed if all pass
+
 ## Red Flags
 
 **Never:**
@@ -254,6 +297,7 @@ git worktree prune  # Self-healing: clean up any stale registrations
 - Run `git worktree remove` from inside the worktree
 - Proceed past Step 1.5 without explicitly stating whether knowledge was captured
 - Silently decide "not worth documenting" without justification
+- Skip the full regression guard for code projects with an existing case library
 
 **Always:**
 - Verify tests before offering options
