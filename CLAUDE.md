@@ -107,6 +107,11 @@ Skill-behavior evals live in [superpowers-evals](https://github.com/prime-radian
 
 Before proposing changes to skill design, workflow philosophy, or architecture, read existing skills and understand the project's design decisions. Superpowers has its own tested philosophy about skill design, agent behavior shaping, and terminology (e.g., "your human partner" is deliberate, not interchangeable with "the user"). Changes that rewrite the project's voice or restructure its approach without understanding why it exists will be rejected.
 
+## Knowledge Base
+
+- `docs/solutions/` — Searchable knowledge store organized by category (design-patterns, bug-fixes, conventions). Consult before starting work in a problem area to find documented solutions, architectural decisions, and known pitfalls.
+- `CONCEPTS.md` — Shared domain vocabulary for project-specific terms and named processes.
+
 ## General
 
 - Read `.github/PULL_REQUEST_TEMPLATE.md` before submitting
