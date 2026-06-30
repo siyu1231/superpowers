@@ -271,16 +271,18 @@ finishing-a-development-branch
 
 ### brainstorming
 
-**CLI 强制要求：**
+**CLI 强制要求（针对被开发的目标项目）：**
 
-Agent Verifiability 的 CLI Entry Point 从建议升级为硬性要求：
+Agent Verifiability 的 CLI Entry Point 从建议升级为硬性要求 — 但仅适用于**目标代码项目**（Superpowers 正在帮助开发的那个项目）。如果目标是文档、设计规范、或其他不天然适合 CLI 的产物，则不做强制。
 
 ```markdown
-#### CLI Entry Point（必须）
-- 命令: `<command> <args>`
-- **每个功能必须有 CLI 入口。** 没有 CLI 入口 = 不可验证 = 设计不完整。
-- 设计评审时，CLI 入口缺失视为阻塞项。
+#### CLI Entry Point
+- 对于代码项目，每个功能必须有 CLI 入口。命令: `<command> <args>`
+- 没有 CLI 入口 = 不可由 agent 自动验证。
+- 设计评审时，代码项目缺少 CLI 入口视为阻塞项。
 ```
+
+**适用范围判断：** brainstorming 阶段根据被开发项目的性质判断是否需要 CLI。启发式规则：该项目的主产物是可执行的程序/服务 → 必须有 CLI；主产物是文档/设计 → 不需要。
 
 **新增回归案例产出步骤：**
 
@@ -288,11 +290,12 @@ Agent Verifiability 的 CLI Entry Point 从建议升级为硬性要求：
 #### Regression Cases → 写入 regression-cases.json
 - 每条案例包含 ON/OFF 对照
 - 标记是否需要 uncertainty_verification
+- 仅代码项目需要产出回归案例
 ```
 
-**设计评审闸门：** spec self-review 新增检查项：「每个功能是否定义了 CLI 入口？」
+**设计评审闸门：** spec self-review 新增检查项：「如果是代码项目，每个功能是否定义了 CLI 入口？」
 
-**对于开发者的约束：** 无论项目原本是 Web、库还是其他形式，必须暴露 CLI 接口。这本质上是「为了 agent 可验证而做的适配层」。CLI 规范建议：Unix 风格子命令、`--flag` 参数化、exit code 遵循约定（0 成功，非 0 失败）、stdout 输出结果。
+**对于目标项目开发者的约束：** 代码项目必须暴露 CLI 接口供 agent 验证。这本质上是「为了 agent 可验证而做的适配层」。CLI 规范建议：Unix 风格子命令、`--flag` 参数化、exit code 遵循约定（0 成功，非 0 失败）、stdout 输出结果。
 
 ### subagent-driven-development
 
