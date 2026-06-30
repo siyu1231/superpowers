@@ -329,6 +329,28 @@ Task reviewer: Spec ✅. Task quality: Approved.
 [Dispatch final code-reviewer]
 Final reviewer: All requirements met, ready to merge
 
+[Check project type]
+If this is NOT a code project → skip verification, go to Done!
+
+If this IS a code project:
+  Present to human partner:
+    "All tasks complete and reviewed. The design includes regression cases.
+     Ready to enter the verification phase?"
+
+  [Wait for human confirmation]
+
+  [Human confirms]
+  Load superpowers:regression-guard
+  Run current-feature verification on the regression-cases.json from design spec
+
+  regression-guard:
+    - Runs each CLI case with TOGGLE=0 and TOGGLE=1
+    - On failure: dispatches debug subagent → re-verifies → loops
+    - If uncertainty_verification=true: dispatches clean-context-verification
+    - On all-pass: writes cases to regression/cases.json
+
+  [Verification complete — cases accumulated]
+
 Done!
 ```
 
@@ -387,6 +409,8 @@ Done!
 - Move to next task while the review has open Critical/Important issues
 - Re-dispatch a task the progress ledger already marks complete — check
   the ledger (and `git log`) after any compaction or resume
+- Skip the verification gate for code projects (if the design spec includes
+  regression cases, verification is not optional)
 
 **If subagent asks questions:**
 - Answer clearly and completely
@@ -410,6 +434,7 @@ Done!
 - **superpowers:writing-plans** - Creates the plan this skill executes
 - **superpowers:requesting-code-review** - Code review template for the final whole-branch review
 - **superpowers:finishing-a-development-branch** - Complete development after all tasks
+- **superpowers:regression-guard** — CLI verification after all tasks complete, before finishing (code projects only)
 
 **Subagents should use:**
 - **superpowers:test-driven-development** - Subagents follow TDD for each task
