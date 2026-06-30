@@ -27,7 +27,7 @@ You MUST create a task for each of these items and complete them in order:
 4. **Propose 2-3 approaches** — with trade-offs and your recommendation
 5. **Present design** — in sections scaled to their complexity, get user approval after each section
 6. **Write design doc** — save to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` and commit
-7. **Spec self-review** — quick inline check for placeholders, contradictions, ambiguity, scope (see below)
+7. **Spec self-review** — quick inline check for placeholders, contradictions, ambiguity, scope. For code projects: verify every feature has CLI entry + regression cases. (see below)
 8. **User reviews written spec** — ask user to review the spec file before proceeding
 9. **Transition to implementation** — invoke writing-plans skill to create implementation plan
 
@@ -140,6 +140,59 @@ Wait for the user's response. If they request changes, make them and re-run the 
 - **Incremental validation** - Present design, get approval before moving on
 - **Be flexible** - Go back and clarify when something doesn't make sense
 
+## Agent Verifiability
+
+Every feature module in a design spec MUST include an **Agent Verifiability** section. The AI fills it autonomously based on the design discussion; the human reviews and corrects during spec review.
+
+### CLI Entry Point
+
+- **Code projects:** Every feature must expose a CLI command. Command format: `<command> <args>`. No CLI entry = not agent-verifiable = design incomplete for code projects. Missing CLI entry for a code project is a blocking issue at design review.
+- **Non-code projects** (documentation, design specs, libraries without executables): CLI entry is not required. Skip the regression case output as well.
+
+### Project Type Determination
+
+During brainstorming, determine whether the project produces an executable program or service (code project) or documentation/design artifacts (non-code project). The CLI requirement and regression case output apply only to code projects.
+
+Heuristic: does the project's primary deliverable run as a process? If yes → code project.
+
+### Deterministic Verification: Three Dimensions
+
+| Dimension | Question | Example |
+|-----------|----------|---------|
+| **Trigger condition** | What exact conditions activate this feature? What is the boundary between "triggers" and "does not trigger"? | `FEATURE_X=1` AND input is valid email → trigger; empty email → no trigger |
+| **Execution flow** | What steps execute, in what order? What is the intermediate state after each step? | ① validate input → ② lookup record → ③ apply transform → ④ write result → ⑤ return |
+| **Success result** | What is the observable output and side effects when the feature completes successfully? | exit=0, stdout contains expected content, no sensitive data in output |
+
+### Feature Toggle
+
+- Toggle name and mechanism: `FEATURE_X=1` (environment variable)
+- Behavior when OFF: define the expected output when toggle is disabled
+
+### Regression Cases (code projects only)
+
+For code projects, each feature MUST produce a `regression-cases.json` file alongside the design spec. Each case:
+
+```json
+{
+  "id": "<unique-id>",
+  "name": "<description>",
+  "command": "<cli-command>",
+  "toggle": "<ENV_VAR>",
+  "trigger_condition": "<conditions>",
+  "execution_flow": ["step 1", "step 2"],
+  "expect": {
+    "on": { "exit_code": 0, "stdout_contains": ["expected"], "stderr_empty": true },
+    "off": { "exit_code": 1, "stdout_contains": ["not available"], "stderr_empty": true }
+  },
+  "uncertainty_verification": false
+}
+```
+
+### Uncertainty Verification Needed?
+
+- **No** — feature is purely deterministic; CLI exit code and output are sufficient.
+- **Yes** — feature involves LLM calls, natural-language generation, or subjective quality judgments. Set `uncertainty_verification: true`. After implementation, `regression-guard` will dispatch `clean-context-verification`.
+
 ## Visual Companion
 
 A browser-based companion for showing mockups, diagrams, and visual options during brainstorming. Available as a tool — not a mode. Accepting the companion means it's available for questions that benefit from visual treatment; it does NOT mean every question goes through the browser.
@@ -158,3 +211,9 @@ A question about a UI topic is not automatically a visual question. "What does p
 
 If they agree to the companion, read the detailed guide before proceeding:
 `skills/brainstorming/visual-companion.md`
+
+## Related Skills
+
+- **superpowers:test-driven-development** — The three dimensions defined in Agent Verifiability become the test blueprint in TDD's RED phase.
+- **superpowers:regression-guard** — Runs the regression cases produced during brainstorming. Invoked after SDD implementation and during finishing.
+- **superpowers:clean-context-verification** — Invoked by regression-guard when Uncertainty Verification is marked "Yes".
