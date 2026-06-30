@@ -183,6 +183,10 @@ Default: `regression/cases.json` at the project root.
 
 If the project uses a different path, it is specified during brainstorming and carried through the case definition.
 
+### Schema Validation
+
+The case library and feature-level case files MUST validate against `skills/regression-guard/case-schema.json`. Before processing any case file, validate it against the schema. If validation fails, report the specific validation errors and stop — do not execute commands from an invalid case file.
+
 ### Write Logic (Current Feature Verification only)
 
 ```

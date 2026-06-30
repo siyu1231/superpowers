@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Regression Case Library",
+  "description": "JSON Schema for Superpowers regression case files (both per-feature and accumulated library).",
+  "type": "object",
+  "required": ["version", "cases"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1"
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "command", "toggle", "trigger_condition", "execution_flow", "expect", "uncertainty_verification"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Unique case identifier. Used as the key when merging into the case library — same id updates, new id appends."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Human-readable case name describing the behavior being verified."
+          },
+          "command": {
+            "type": "string",
+            "minLength": 1,
+            "description": "CLI command to execute for verification."
+          },
+          "toggle": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Environment variable name for the feature toggle."
+          },
+          "trigger_condition": {
+            "type": "string",
+            "description": "Exact conditions under which this feature activates."
+          },
+          "execution_flow": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1,
+            "description": "Ordered steps of feature execution."
+          },
+          "expect": {
+            "type": "object",
+            "required": ["on", "off"],
+            "properties": {
+              "on": {
+                "type": "object",
+                "required": ["exit_code", "stdout_contains"],
+                "properties": {
+                  "exit_code": { "type": "integer" },
+                  "stdout_contains": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Strings that must appear in stdout when toggle is ON."
+                  },
+                  "stderr_empty": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "When true, stderr must be empty."
+                  }
+                }
+              },
+              "off": {
+                "type": "object",
+                "required": ["exit_code", "stdout_contains"],
+                "properties": {
+                  "exit_code": { "type": "integer" },
+                  "stdout_contains": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Strings that must appear in stdout when toggle is OFF."
+                  },
+                  "stderr_empty": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "When true, stderr must be empty."
+                  }
+                }
+              }
+            }
+          },
+          "uncertainty_verification": {
+            "type": "boolean",
+            "description": "When true, regression-guard dispatches clean-context-verification after deterministic checks pass."
+          }
+        }
+      }
+    }
+  }
+}
