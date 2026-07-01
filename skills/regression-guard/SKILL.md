@@ -21,6 +21,22 @@ NO MERGE WITHOUT FRESH REGRESSION EXECUTION AGAINST THE CASE LIBRARY
 
 If you haven't run every regression case in this session, you cannot claim the branch is clean.
 
+## The Second Iron Law
+
+```
+NO INLINE FIXES ON VERIFICATION FAILURE — ALWAYS DISPATCH A FRESH SUBAGENT
+```
+
+When a CLI command does not produce the expected output, you are the **judge**, not the **fixer**. Your job is to detect the mismatch, report it precisely, and dispatch a fresh subagent to investigate and fix. Fixing it yourself contaminates your judgment — you will rationalize the output you just made the code produce.
+
+**No exceptions:**
+- "This is a one-line fix" → dispatch
+- "I can see exactly what's wrong" → dispatch
+- "It's faster to fix it myself" → dispatch
+- "Just this once" → dispatch
+
+A fresh subagent reads the code with naive eyes. You cannot — you already know what the output "should" be.
+
 ## When to Use
 
 This skill is **never invoked standalone.** It is called by other skills at specific gates:
@@ -173,6 +189,20 @@ MISMATCH: <specific field that differs and how>
 ```
 
 ### Debug Dispatch
+
+<HARD-GATE>
+When a case fails verification, you MUST dispatch a fresh subagent to fix it. Fixing the failure yourself is a violation of the Second Iron Law. You are the judge — the subagent is the fixer. These roles do not merge.
+</HARD-GATE>
+
+**This is not optional.** On every verification failure, you WILL:
+
+1. Write the debug brief file
+2. Dispatch a fresh subagent using the template
+3. Wait for its report
+4. Verify the report contains fix evidence
+5. Re-run the case yourself to confirm
+
+If you catch yourself thinking "this is simple enough to fix inline," re-read the Second Iron Law. The subagent exists for a reason: you cannot judge output you just made the code produce.
 
 On failure, DO NOT paste failure details directly into the subagent prompt. Use file handoff — the same pattern that keeps SDD dispatches tight:
 
@@ -450,6 +480,9 @@ The calling skill (`subagent-driven-development` or `finishing-a-development-bra
 | "I'll add the case to the library later" | Later never happens. Write on pass or report why not. |
 | "The toggle is always on in this environment" | Then OFF verification will fail honestly. That's evidence, not a reason to skip. |
 | "This project doesn't need regression" | If it's a code project with CLI, it needs regression. No exceptions. |
+| "I can fix this myself — it's faster" | You are the judge, not the fixer. Dispatch a subagent. Fixing inline contaminates your judgment. |
+| "This is just a one-line change" | One line or one hundred — dispatch. A fresh subagent reads the code with naive eyes. |
+| "I already know what's wrong" | Knowing and verifying are different. Let the subagent confirm and fix. |
 
 ## Red Flags — STOP
 
@@ -470,6 +503,9 @@ If you catch yourself thinking any of these, STOP. You are about to violate the 
 - **Pasting failure details into the dispatch prompt** instead of writing a debug brief file (file handoff is not optional — your context is finite)
 - **Accepting a debug subagent report** without verifying it contains: fix verification commands run, output observed, exit codes for both toggle states
 - **Skipping the progress ledger** (after compaction you will not remember what passed)
+- **Fixing the failure yourself** instead of dispatching a debug subagent (you are the judge, not the fixer — Second Iron Law)
+- **Thinking "this is too simple to need a subagent"** (every fix gets a fresh subagent, no exceptions)
+- **Writing the fix and then verifying it yourself** (you cannot judge output you just made the code produce — this is why the subagent exists)
 
 **All of these mean: STOP. Re-read the Iron Law. Run every case, check every expectation, or report honestly that you cannot.**
 
