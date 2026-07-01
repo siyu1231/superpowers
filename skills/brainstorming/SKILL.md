@@ -116,6 +116,7 @@ After writing the spec document, look at it with fresh eyes:
 2. **Internal consistency:** Do any sections contradict each other? Does the architecture match the feature descriptions?
 3. **Scope check:** Is this focused enough for a single implementation plan, or does it need decomposition?
 4. **Ambiguity check:** Could any requirement be interpreted two different ways? If so, pick one and make it explicit.
+5. **Regression case file check (code projects):** Is `regression-cases.json` written alongside the design doc? Does every feature have at least one case with ON/OFF expectation blocks? If not, the design is incomplete — fix before proceeding.
 
 Fix any issues inline. No need to re-review — just fix and move on.
 

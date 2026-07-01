@@ -333,8 +333,14 @@ Final reviewer: All requirements met, ready to merge
 If this is NOT a code project → skip verification, go to Done!
 
 If this IS a code project:
+  Check: does regression-cases.json exist alongside the design spec?
+    → NO:  BLOCKED. "The design spec did not produce regression cases.
+            Cannot enter verification without them. Revisit brainstorming."
+            Do NOT proceed. Do NOT fabricate cases.
+    → YES: Continue.
+
   Present to human partner:
-    "All tasks complete and reviewed. The design includes regression cases.
+    "All tasks complete and reviewed. <N> regression cases ready.
      Ready to enter the verification phase?"
 
   [Wait for human confirmation]
@@ -348,6 +354,7 @@ If this IS a code project:
     - On failure: dispatches debug subagent → re-verifies → loops
     - If uncertainty_verification=true: dispatches clean-context-verification
     - On all-pass: writes cases to regression/cases.json
+    - If write to case library fails → BLOCKED. Report to human partner.
 
   [Verification complete — cases accumulated]
 

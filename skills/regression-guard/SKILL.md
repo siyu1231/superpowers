@@ -88,6 +88,8 @@ ALL cases passed?
   ▼
 Current Feature Verification mode?
   ├─ YES → Write/update cases in regression/cases.json
+  │         ├─ Success → DONE (cases persisted)
+  │         └─ Failure → BLOCKED (verification passed but cases lost)
   └─ NO  → (Full Regression mode: no write)
 ```
 
@@ -110,10 +112,32 @@ Current Feature Verification mode?
 4. On all pass: write/update cases into the shared library at `regression/cases.json`
 5. Report results to your human partner
 
-**Library write on success:**
-- New `id` not in library → append to `cases` array
-- Existing `id` with changed expectations → update that entry
-- Existing `id` with identical expectations → no-op (skip)
+**Library write on success — MANDATORY, not optional:**
+
+After all cases pass, write to `regression/cases.json`:
+
+1. Read the existing library (create `{ "version": "1", "cases": [] }` if absent)
+2. For each verified case, apply the merge rule:
+   - New `id` not in library → append to `cases` array
+   - Existing `id` with changed expectations → update that entry
+   - Existing `id` with identical expectations → no-op (skip)
+3. Write the updated library back to `regression/cases.json`
+4. Verify the write: re-read the file and confirm the case count is correct
+
+**If the write fails for any reason** (file not writable, JSON invalid, case count mismatch):
+```
+BLOCKED: Cannot write to regression/cases.json
+
+<specific error>
+
+Verification passed but cases were NOT persisted. The next full regression
+will not include these cases. Fix the write error and re-run the write,
+or manually append the verified cases.
+```
+
+Do NOT proceed past this point with unwritten cases. Do NOT claim
+"verification complete" if the library was not updated. A feature without
+persisted regression cases is a feature that will regress silently.
 
 ### Mode 2: Full Regression
 
