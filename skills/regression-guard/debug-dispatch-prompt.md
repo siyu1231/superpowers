@@ -12,6 +12,10 @@ Subagent (general-purpose):
     A regression case failed verification. Your job: find the root cause
     in the implementation code and fix it.
 
+    **BEFORE you start debugging:** Load the `superpowers:systematic-debugging`
+    skill. Follow its methodology — reproduce the failure, trace root cause,
+    fix, verify the fix, prevent regression. Do not skip steps.
+
     Read your debug brief first: <BRIEF_FILE>
     It contains the failure report, the full case definition
     (command, toggle, execution_flow, both expect blocks), and the
