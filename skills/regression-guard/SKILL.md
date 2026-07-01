@@ -156,42 +156,7 @@ On failure, DO NOT paste failure details directly into the subagent prompt. Use 
 
 **Step 2: Compose the dispatch.** The subagent prompt contains: (1) one line on which case failed; (2) the brief path, introduced as "read this first — it is your debugging target"; (3) the report file path and report contract; (4) the global constraints.
 
-**Step 3: Dispatch the subagent** loaded with `superpowers:systematic-debugging`:
-
-```
-Subagent (general-purpose):
-  description: "Debug: <case.id> — <case.name> (round <N>)"
-  model: [choose per Model Selection below]
-  prompt: |
-    A regression case failed verification. Your job: find the root cause
-    in the implementation code and fix it.
-
-    Read your debug brief first: <BRIEF_FILE>
-    It contains the failure report and case definition.
-
-    ## Fix Contract
-    After fixing, re-run ONLY the failed CLI command (both TOGGLE=0 and
-    TOGGLE=1) and confirm both match expectations. Do NOT run unrelated
-    tests or wander into other cases — this is a focused fix.
-
-    ## Report Format
-    Write your full report to <REPORT_FILE>. Include:
-    - Root cause (what was broken and why)
-    - What you changed (files and rationale)
-    - Fix verification: exact commands run, output observed, exit codes
-    - Any concerns or deferred issues
-
-    Then return ONLY (under 15 lines):
-    - Status: DONE | DONE_WITH_CONCERNS | BLOCKED
-    - Commits created (short SHA + subject)
-    - Fix verification summary (commands run, output matched)
-    - Your concerns, if any
-    - The report file path
-
-    Use DONE_WITH_CONCERNS if the fix works but you suspect fragility.
-    Use BLOCKED if the root cause is unclear or the fix would touch code
-    you don't understand. The controller will escalate to the human.
-```
+**Step 3: Dispatch the subagent** loaded with `superpowers:systematic-debugging`, using the dispatch template at [debug-dispatch-prompt.md](debug-dispatch-prompt.md). Fill all placeholders: `<case.id>`, `<case.name>`, `<round_n>`, `<BRIEF_FILE>`, `<REPORT_FILE>`. Choose the model per Model Selection below.
 
 **Step 4: Verify the fix.** After the subagent returns, confirm the report contains: (a) the verification commands run, (b) the output observed, (c) matching exit codes for both toggle states. If any of these are missing, send the subagent back to complete the report. Only after all three are present, re-run the case verification yourself.
 
@@ -212,6 +177,40 @@ Debug subagents report one of three statuses. Handle each appropriately:
 4. If uncertain which → escalate to human partner with the subagent's full report
 
 **Never** accept a silent retry without changing something. If the subagent said it's stuck, re-dispatching with identical context produces identical results.
+
+### Uncertainty Verification Dispatch
+
+When deterministic verification passes and `uncertainty_verification: true`, the calling agent must dispatch a clean-context verifier. This is a separate subagent with its own dispatch contract — DO NOT merge it into the debug dispatch.
+
+**Step 1: Write the verification brief.** Create `.superpowers/regression-guard/verify-brief-<case.id>.md`. Content (and NOTHING more):
+
+- `case.name` — what behavior is expected, in plain language
+- `case.command` — the exact CLI command to run
+- `case.expect.on` — expected exit code and stdout content
+- `case.execution_flow` — the steps the feature should follow
+
+**CRITICAL: What MUST NOT be in the brief:**
+- Implementation source code or file paths
+- Design documents, specs, or development discussion
+- The toggle mechanism details (the command string already includes the toggle)
+- Any information about HOW the feature is built
+
+If any of these leak into the brief, the verifier's judgment is contaminated. Write the brief, then re-read it — if a single file path or code snippet appears, delete it.
+
+**Step 2: Dispatch the subagent** using the template at [clean-context-verifier-prompt.md](clean-context-verifier-prompt.md). Fill the placeholders: `<case.id>`, `<case.name>`, `<BRIEF_FILE>`. The subagent receives ONLY the brief file — no other context about the project.
+
+**Step 3: Handle the verdict.**
+
+**PASS:** The verifier confirmed output quality. The case passes uncertainty verification. Mark in the progress ledger and continue.
+
+**FAIL:** The verifier found concrete issues in the output. The failure report includes verbatim actual output. NOW — and only now — expose implementation details to a debug subagent:
+
+1. Write a debug brief containing: the verifier's failure report (issues + verbatim output), the implementation code paths, and the fix contract
+2. Dispatch a debug subagent using [debug-dispatch-prompt.md](debug-dispatch-prompt.md)
+3. After fix, re-run uncertainty verification with a FRESH clean-context subagent (the previous verifier's context is contaminated)
+4. Loop until pass or 3 rounds total (verifier → debug → re-verify = 1 round)
+
+**Step 4: Clean up.** Delete the verification brief after the case passes. The report from the clean-context verifier is preserved in the debug report chain.
 
 ### The 3-Round Hard Limit
 
@@ -472,6 +471,11 @@ If you catch yourself thinking any of these, STOP. You are about to violate the 
 |------|-------------|-------------|
 | Feature `regression-cases.json` | `brainstorming` | `regression-guard` (Current Feature Verification mode) |
 | `regression/cases.json` (library) | `regression-guard` (writes on pass) | `regression-guard` (Full Regression mode) |
+
+## Prompt Templates
+
+- [debug-dispatch-prompt.md](debug-dispatch-prompt.md) — Dispatch debug subagent on verification failure
+- [clean-context-verifier-prompt.md](clean-context-verifier-prompt.md) — Dispatch clean-context verifier for uncertainty verification
 
 ## The Bottom Line
 
