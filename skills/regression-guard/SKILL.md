@@ -150,13 +150,68 @@ MISMATCH: <specific field that differs and how>
 
 ### Debug Dispatch
 
-On failure, dispatch a subagent loaded with `superpowers:systematic-debugging`. The subagent receives:
-- The complete failure report above
-- The full case definition (command, execution_flow, trigger_condition, both expect blocks)
-- Access to the current codebase
-- Instruction: find root cause, fix it, then the main loop will re-verify
+On failure, DO NOT paste failure details directly into the subagent prompt. Use file handoff — the same pattern that keeps SDD dispatches tight:
 
-After the subagent returns, re-run verification for that case. If it passes, continue. If it fails again, that counts as another round.
+**Step 1: Write the debug brief file.** Content: the failure report, the full case definition, and the fix contract. Path: `.superpowers/regression-guard/debug-brief-<case.id>-round<N>.md`. This file is the subagent's single source of truth — exact values appear only here.
+
+**Step 2: Compose the dispatch.** The subagent prompt contains: (1) one line on which case failed; (2) the brief path, introduced as "read this first — it is your debugging target"; (3) the report file path and report contract; (4) the global constraints.
+
+**Step 3: Dispatch the subagent** loaded with `superpowers:systematic-debugging`:
+
+```
+Subagent (general-purpose):
+  description: "Debug: <case.id> — <case.name> (round <N>)"
+  model: [choose per Model Selection below]
+  prompt: |
+    A regression case failed verification. Your job: find the root cause
+    in the implementation code and fix it.
+
+    Read your debug brief first: <BRIEF_FILE>
+    It contains the failure report and case definition.
+
+    ## Fix Contract
+    After fixing, re-run ONLY the failed CLI command (both TOGGLE=0 and
+    TOGGLE=1) and confirm both match expectations. Do NOT run unrelated
+    tests or wander into other cases — this is a focused fix.
+
+    ## Report Format
+    Write your full report to <REPORT_FILE>. Include:
+    - Root cause (what was broken and why)
+    - What you changed (files and rationale)
+    - Fix verification: exact commands run, output observed, exit codes
+    - Any concerns or deferred issues
+
+    Then return ONLY (under 15 lines):
+    - Status: DONE | DONE_WITH_CONCERNS | BLOCKED
+    - Commits created (short SHA + subject)
+    - Fix verification summary (commands run, output matched)
+    - Your concerns, if any
+    - The report file path
+
+    Use DONE_WITH_CONCERNS if the fix works but you suspect fragility.
+    Use BLOCKED if the root cause is unclear or the fix would touch code
+    you don't understand. The controller will escalate to the human.
+```
+
+**Step 4: Verify the fix.** After the subagent returns, confirm the report contains: (a) the verification commands run, (b) the output observed, (c) matching exit codes for both toggle states. If any of these are missing, send the subagent back to complete the report. Only after all three are present, re-run the case verification yourself.
+
+**Step 5: Clean up the brief.** The brief file is scratch — its content is already in the report. Do not leave stale briefs for the next round.
+
+### Handling Debug Subagent Status
+
+Debug subagents report one of three statuses. Handle each appropriately:
+
+**DONE:** The subagent found the root cause, applied a fix, and verified it. Confirm the report contains fix verification evidence (commands run, output observed, exit codes for both toggle states). If all three are present, re-run the case verification. If the report is incomplete, send the subagent back to finish it — a fix without verification evidence is not a fix.
+
+**DONE_WITH_CONCERNS:** The fix works but the subagent flagged doubts (fragility, side effects, incomplete understanding). Read the concerns before re-verifying. If the concerns suggest the case itself may be wrong (not the code), escalate to your human partner — "the fix passes but there are concerns worth reviewing." Otherwise, re-verify and note the concerns in the progress ledger.
+
+**BLOCKED:** The subagent cannot determine the root cause or cannot fix it without touching code it doesn't understand. Do NOT re-dispatch the same subagent. Assess the blocker:
+1. Context problem → provide more context (e.g., additional file paths, design doc references) and re-dispatch with the same model
+2. Task requires more reasoning → re-dispatch with a more capable model
+3. Case expectations may be wrong → escalate to human partner: "the code produces X, the case expects Y — which governs?"
+4. If uncertain which → escalate to human partner with the subagent's full report
+
+**Never** accept a silent retry without changing something. If the subagent said it's stuck, re-dispatching with identical context produces identical results.
 
 ### The 3-Round Hard Limit
 
@@ -174,6 +229,62 @@ After 3 failed rounds on a single case, STOP the entire verification. Do not ski
 - Ask your human partner for a decision
 
 **If 3 rounds fail on 2+ different cases:** question whether the verification approach itself is sound. The problem may be in how cases are defined, not in the code.
+
+## Model Selection
+
+Use the least powerful model that can handle each subagent role:
+
+| Subagent Role | Model Tier | Rationale |
+|---------------|------------|-----------|
+| **Debug (deterministic failure)** | Standard (e.g., sonnet) | Multi-step investigation: read code, trace logic, identify root cause, apply fix. Mid-tier floor — cheap models take 2-3× turns and miss root causes. |
+| **Debug (round 2+, same case)** | Standard or higher | Escalation: the first fix didn't work. Use same tier or upgrade if round 1 was on a cheap model. |
+| **Clean-context verifier** | Standard (e.g., sonnet) | Judgment task: evaluate output quality, tone, completeness. Not mechanical — requires independent assessment. |
+
+If the case is purely mechanical (one-line fix, misconfigured flag, wrong exit code), a cheap model is acceptable for round 1.
+
+**Always specify the model explicitly when dispatching.** An omitted model inherits your session's model — silently the most expensive — defeating this section.
+
+## Progress Ledger
+
+Conversation memory does not survive compaction. Track verification state in a ledger at `.superpowers/regression-guard/progress.md`.
+
+**At start of verification:**
+```bash
+cat "$(git rev-parse --show-toplevel)/.superpowers/regression-guard/progress.md" 2>/dev/null || echo "NO_LEDGER"
+```
+Cases listed there as verified are DONE — do not re-verify them. Resume at the first case not marked verified.
+
+**After a case passes (both deterministic and uncertainty):** append one line:
+```
+<case.id>: VERIFIED (rounds: <N>, toggle ON+OFF match, <uncertainty status>)
+```
+
+**After debug subagent fix lands:** append the fix commit range:
+```
+<case.id>: FIXED round <N> (commits <base7>..<head7>)
+```
+
+**After 3-round exhaustion on a case:** append:
+```
+<case.id>: EXHAUSTED after 3 rounds — human decision required
+```
+
+**After library write (current-feature mode):** append:
+```
+Library: written (<N> cases added, <M> updated) → regression/cases.json
+```
+
+The ledger is your recovery map after compaction. Trust it over your own recollection. `git clean -fdx` will destroy it (it's git-ignored scratch); if that happens, recover by re-running all cases.
+
+## File Handoffs
+
+Every artifact crossing the subagent boundary goes through files, not pasted text. Pasting bulk content into your dispatch pollutes your context permanently — every later turn re-reads it.
+
+| Artifact | Format | Path Pattern | Lifecycle |
+|----------|--------|-------------|-----------|
+| Debug brief | Markdown | `.superpowers/regression-guard/debug-brief-<case.id>-round<N>.md` | Written before dispatch; deleted after verification completes for that case |
+| Debug report | Markdown | `.superpowers/regression-guard/debug-report-<case.id>-round<N>.md` | Written by subagent; retained until case passes (reference for re-verification) |
+| Progress ledger | Plain text | `.superpowers/regression-guard/progress.md` | Persistent across the verification session; survives compaction |
 
 ## Case Library Operations
 
@@ -333,6 +444,9 @@ If you catch yourself thinking any of these, STOP. You are about to violate the 
 - **Fabricating regression cases** when `regression/cases.json` doesn't exist for Full Regression
 - **Running verification on a non-code project** (upstream gate failed — report it)
 - **Claiming "all pass"** without running every case fresh in this session
+- **Pasting failure details into the dispatch prompt** instead of writing a debug brief file (file handoff is not optional — your context is finite)
+- **Accepting a debug subagent report** without verifying it contains: fix verification commands run, output observed, exit codes for both toggle states
+- **Skipping the progress ledger** (after compaction you will not remember what passed)
 
 **All of these mean: STOP. Re-read the Iron Law. Run every case, check every expectation, or report honestly that you cannot.**
 
