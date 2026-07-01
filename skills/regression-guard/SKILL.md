@@ -1,15 +1,19 @@
 ---
 name: regression-guard
-description: Called by subagent-driven-development and finishing-a-development-branch — runs CLI-level regression cases with ON/OFF toggle comparison, dispatches debug subagents on failure, and accumulates cases into the regression library
+description: Called by subagent-driven-development and finishing-a-development-branch — dispatches verification runner subagents per case, debug subagents on failure, and accumulates cases into the regression library
 ---
 
 # Regression Guard
 
 ## Overview
 
-Manual re-testing of CLI commands after every change is the largest source of wasted agent time and undetected regressions. A feature that "passed yesterday" means nothing — only fresh CLI execution against expected output counts.
+**You are a coordinator, not an executor.** You never run CLI commands yourself. You never read implementation code yourself. You never fix anything yourself. Your job is to dispatch fresh subagents for every step and route their reports.
 
-**Core principle:** Every feature that touches a CLI must ship with automated regression cases. ON/OFF toggle comparison proves the feature is gated, not just "always on by accident."
+This is identical to how SDD works: read the plan → dispatch implementer → read report → dispatch reviewer → read report → next task. Here: read cases → dispatch verification runner → read report → if FAIL, dispatch debug fixer → re-dispatch verification runner → read report → next case.
+
+**Why this matters:** When you run a CLI command yourself and see wrong output, you immediately know why it's wrong and how to fix it. You cannot then objectively judge a fix — you'll rationalize the output you just made the code produce. By dispatching every step, you stay clean.
+
+**Core principle:** Fresh subagent per verification run + fresh subagent per fix = no judgment contamination.
 
 **Violating the letter of this process is violating the spirit of regression prevention.**
 
@@ -19,23 +23,7 @@ Manual re-testing of CLI commands after every change is the largest source of wa
 NO MERGE WITHOUT FRESH REGRESSION EXECUTION AGAINST THE CASE LIBRARY
 ```
 
-If you haven't run every regression case in this session, you cannot claim the branch is clean.
-
-## The Second Iron Law
-
-```
-NO INLINE FIXES ON VERIFICATION FAILURE — ALWAYS DISPATCH A FRESH SUBAGENT
-```
-
-When a CLI command does not produce the expected output, you are the **judge**, not the **fixer**. Your job is to detect the mismatch, report it precisely, and dispatch a fresh subagent to investigate and fix. Fixing it yourself contaminates your judgment — you will rationalize the output you just made the code produce.
-
-**No exceptions:**
-- "This is a one-line fix" → dispatch
-- "I can see exactly what's wrong" → dispatch
-- "It's faster to fix it myself" → dispatch
-- "Just this once" → dispatch
-
-A fresh subagent reads the code with naive eyes. You cannot — you already know what the output "should" be.
+If every case hasn't been verified by a fresh subagent in this session, you cannot claim the branch is clean.
 
 ## When to Use
 
@@ -50,7 +38,7 @@ This skill is **never invoked standalone.** It is called by other skills at spec
 
 **Do NOT invoke this skill directly.** It has no standalone use case. If you think you need it outside these two gates, the calling skill's gate logic is broken — report that to your human partner.
 
-## The Verification Loop
+## The Coordinator Loop
 
 ```
 READ cases from source
@@ -59,44 +47,63 @@ READ cases from source
   │       OR regression/cases.json (full library)
   │
   ▼
-For EACH case ──────────────────────────────────────────────┐
-  │                                                         │
-  ▼                                                         │
-┌─ DETERMINISTIC VERIFICATION ──────────────────────────┐   │
-│                                                       │   │
-│  1. Execute: TOGGLE=0 <command>                       │   │
-│     Compare against expect.off                        │   │
-│     ├─ Match → continue                               │   │
-│     └─ Mismatch → record FAILURE ──────┐              │   │
-│                                        │              │   │
-│  2. Execute: TOGGLE=1 <command>        │              │   │
-│     Compare against expect.on          │              │   │
-│     ├─ Match → continue                │              │   │
-│     └─ Mismatch → record FAILURE ──────┤              │   │
-│                                        │              │   │
-└────────────────────────────────────────┼──────────────┘   │
-  │                                      │                  │
-  ▼                                      ▼                  │
-Any FAILURES? ── YES ──► Dispatch debug subagent            │
-  │                      (systematic-debugging)              │
-  │                      Fix → re-verify this case           │
-  │                      Loop until pass or 3 rounds         │
-  │                      ────────────────────────────────────┤
-  │                                                         │
-  NO                                                        │
-  │                                                         │
-  ▼                                                         │
-uncertainty_verification == true?                           │
-  │                                                         │
-  YES ──► Dispatch clean-context-verification subagent      │
-  │       ├─ Pass → continue                                │
-  │       └─ Fail → debug subagent → re-verify              │
-  │              Loop until pass or 3 rounds                │
-  │                                                         │
-  NO                                                        │
-  │                                                         │
-  ▼                                                         │
-Case PASSED ────────────────────────────────────────────────┘
+For EACH case ────────────────────────────────────────────────┐
+  │                                                           │
+  │  Step 1: Write verification brief                         │
+  │  (case command + toggle + both expect blocks)              │
+  │                                                           │
+  ▼                                                           │
+  Step 2: Dispatch verification runner subagent               │
+  │   (verification-runner-prompt.md)                         │
+  │   Subagent: runs CLI with TOGGLE=0, compares expect.off   │
+  │            runs CLI with TOGGLE=1, compares expect.on     │
+  │            writes structured report                       │
+  │            returns: PASS | FAIL                           │
+  │                                                           │
+  ▼                                                           │
+  Runner verdict?                                             │
+  │                                                           │
+  ├─ PASS ──────────────────────────────────────────┐        │
+  │                                                  │        │
+  └─ FAIL ──→ Record mismatches from report          │        │
+               │                                     │        │
+               ▼                                     │        │
+             Dispatch debug fixer subagent           │        │
+             (debug-dispatch-prompt.md)              │        │
+             Brief includes: runner's report,        │        │
+             failed case definition, fix contract    │        │
+               │                                     │        │
+               ▼                                     │        │
+             Debug returns:                          │        │
+             DONE | DONE_WITH_CONCERNS | BLOCKED     │        │
+               │                                     │        │
+               ▼                                     │        │
+             BLOCKED? ──→ escalate to human partner  │        │
+               │                                     │        │
+               ▼                                     │        │
+             Re-dispatch verification runner         │        │
+             (fresh subagent, same case)             │        │
+               │                                     │        │
+               ▼                                     │        │
+             Runner: PASS now?                       │        │
+               ├─ Yes → continue                     │        │
+               └─ No  → back to debug (max 3 rounds) │        │
+               │                                     │        │
+               ▼                                     │        │
+  Deterministic PASS ────────────────────────────────┘        │
+  │                                                           │
+  ▼                                                           │
+uncertainty_verification == true?                             │
+  │                                                           │
+  YES ──→ Dispatch clean-context verifier                     │
+  │       (clean-context-verifier-prompt.md)                  │
+  │       ├─ PASS → continue                                  │
+  │       └─ FAIL → debug fixer → re-verify → loop            │
+  │                                                           │
+  NO                                                          │
+  │                                                           │
+  ▼                                                           │
+Case PASSED ──────────────────────────────────────────────────┘
   │
   ▼
 ALL cases passed?
@@ -109,9 +116,9 @@ Current Feature Verification mode?
   └─ NO  → (Full Regression mode: no write)
 ```
 
-**Each case gets at most 3 debug-fix-retry rounds.** After 3 failed rounds on a single case, STOP and report to your human partner. Do not attempt round 4.
+**Each case gets at most 3 debug-fix rounds.** After 3 rounds on a single case, STOP and report to your human partner.
 
-**Note on the diagram:** `TOGGLE=0` and `TOGGLE=1` in the verification loop are placeholders. Each case defines its own toggle environment variable via the `toggle` field. When `case.toggle` is `FEATURE_X`, execute `FEATURE_X=0 <command>` and `FEATURE_X=1 <command>`.
+**Note on the diagram:** `TOGGLE` is a placeholder for `<case.toggle>`. When `case.toggle` is `FEATURE_X`, the verification runner executes `FEATURE_X=0 <command>` and `FEATURE_X=1 <command>`.
 
 ## Two Modes
 
@@ -119,41 +126,23 @@ Current Feature Verification mode?
 
 **Triggered by:** `subagent-driven-development` after implementation + reviews pass + human gate confirmation.
 
-**Input:** The `regression-cases.json` file produced during brainstorming for the current feature. This file lives alongside the design doc and contains only the cases for this feature.
+**Input:** The `regression-cases.json` file produced during brainstorming for the current feature.
 
 **Behavior:**
-1. Read the feature's `regression-cases.json`
-2. Run the verification loop on every case
-3. On failure: debug-fix loop (max 3 rounds per case)
-4. On all pass: write/update cases into the shared library at `regression/cases.json`
-5. Report results to your human partner
+1. Validate the case file against `case-schema.json`
+2. For each case: dispatch verification runner → read report → PASS or debug-fix loop
+3. Dispatch uncertainty verifier if case requires it
+4. On all pass: write cases into `regression/cases.json`
+5. Report to human partner
 
-**Library write on success — MANDATORY, not optional:**
+**Library write on success — MANDATORY:**
 
 After all cases pass, write to `regression/cases.json`:
 
 1. Read the existing library (create `{ "version": "1", "cases": [] }` if absent)
-2. For each verified case, apply the merge rule:
-   - New `id` not in library → append to `cases` array
-   - Existing `id` with changed expectations → update that entry
-   - Existing `id` with identical expectations → no-op (skip)
-3. Write the updated library back to `regression/cases.json`
-4. Verify the write: re-read the file and confirm the case count is correct
-
-**If the write fails for any reason** (file not writable, JSON invalid, case count mismatch):
-```
-BLOCKED: Cannot write to regression/cases.json
-
-<specific error>
-
-Verification passed but cases were NOT persisted. The next full regression
-will not include these cases. Fix the write error and re-run the write,
-or manually append the verified cases.
-```
-
-Do NOT proceed past this point with unwritten cases. Do NOT claim
-"verification complete" if the library was not updated. A feature without
-persisted regression cases is a feature that will regress silently.
+2. For each verified case: new `id` → append; existing `id` with changed expectations → update; same `id` and expectations → skip
+3. Write and re-read to verify the write
+4. **If write fails:** BLOCKED. Cases were verified but NOT persisted. Fix the write error — do not proceed without a written library.
 
 ### Mode 2: Full Regression
 
@@ -162,211 +151,147 @@ persisted regression cases is a feature that will regress silently.
 **Input:** The accumulated case library at `regression/cases.json`.
 
 **Behavior:**
-1. Read `regression/cases.json`
-2. Run the verification loop on EVERY case in the library
-3. On failure: debug-fix loop (max 3 rounds per case)
-4. **Do NOT write to the case library** — this mode only verifies, it never accumulates
-5. Report results to your human partner
+1. Validate the library against `case-schema.json`
+2. For each case: dispatch verification runner → read report → PASS or debug-fix loop
+3. **Do NOT write to the case library** — this mode only verifies
+4. Report results
 
-**If `regression/cases.json` does not exist:** there is no accumulated regression library. Skip full regression and report that fact. Do not fabricate cases.
-
-## Failure Handling
-
-### Failure Report Format
-
-When a case fails verification, report with this structure:
-
-```
-CASE: <case.id> — <case.name>
-STATE: ON (TOGGLE=1) | OFF (TOGGLE=0)
-COMMAND: <case.command>
-EXPECTED: <expect.on or expect.off content>
-ACTUAL:
-  exit_code: <N>
-  stdout: <actual stdout>
-  stderr: <actual stderr>
-MISMATCH: <specific field that differs and how>
-```
-
-### Debug Dispatch
-
-<HARD-GATE>
-When a case fails verification, you MUST dispatch a fresh subagent to fix it. Fixing the failure yourself is a violation of the Second Iron Law. You are the judge — the subagent is the fixer. These roles do not merge.
-</HARD-GATE>
-
-**This is not optional.** On every verification failure, you WILL:
-
-1. Write the debug brief file
-2. Dispatch a fresh subagent using the template
-3. Wait for its report
-4. Verify the report contains fix evidence
-5. Re-run the case yourself to confirm
-
-If you catch yourself thinking "this is simple enough to fix inline," re-read the Second Iron Law. The subagent exists for a reason: you cannot judge output you just made the code produce.
-
-On failure, DO NOT paste failure details directly into the subagent prompt. Use file handoff — the same pattern that keeps SDD dispatches tight:
-
-**Step 1: Write the debug brief file.** Content: the failure report, the full case definition, and the fix contract. Path: `.superpowers/regression-guard/debug-brief-<case.id>-round<N>.md`. This file is the subagent's single source of truth — exact values appear only here.
-
-**Step 2: Compose the dispatch.** The subagent prompt contains: (1) one line on which case failed; (2) the brief path, introduced as "read this first — it is your debugging target"; (3) the report file path and report contract; (4) the global constraints.
-
-**Step 3: Dispatch the subagent** loaded with `superpowers:systematic-debugging`, using the dispatch template at [debug-dispatch-prompt.md](debug-dispatch-prompt.md). Fill all placeholders: `<case.id>`, `<case.name>`, `<round_n>`, `<BRIEF_FILE>`, `<REPORT_FILE>`. Choose the model per Model Selection below.
-
-**Step 4: Verify the fix.** After the subagent returns, confirm the report contains: (a) the verification commands run, (b) the output observed, (c) matching exit codes for both toggle states. If any of these are missing, send the subagent back to complete the report. Only after all three are present, re-run the case verification yourself.
-
-**Step 5: Clean up the brief.** The brief file is scratch — its content is already in the report. Do not leave stale briefs for the next round.
-
-### Handling Debug Subagent Status
-
-Debug subagents report one of three statuses. Handle each appropriately:
-
-**DONE:** The subagent found the root cause, applied a fix, and verified it. Confirm the report contains fix verification evidence (commands run, output observed, exit codes for both toggle states). If all three are present, re-run the case verification. If the report is incomplete, send the subagent back to finish it — a fix without verification evidence is not a fix.
-
-**DONE_WITH_CONCERNS:** The fix works but the subagent flagged doubts (fragility, side effects, incomplete understanding). Read the concerns before re-verifying. If the concerns suggest the case itself may be wrong (not the code), escalate to your human partner — "the fix passes but there are concerns worth reviewing." Otherwise, re-verify and note the concerns in the progress ledger.
-
-**BLOCKED:** The subagent cannot determine the root cause or cannot fix it without touching code it doesn't understand. Do NOT re-dispatch the same subagent. Assess the blocker:
-1. Context problem → provide more context (e.g., additional file paths, design doc references) and re-dispatch with the same model
-2. Task requires more reasoning → re-dispatch with a more capable model
-3. Case expectations may be wrong → escalate to human partner: "the code produces X, the case expects Y — which governs?"
-4. If uncertain which → escalate to human partner with the subagent's full report
-
-**Never** accept a silent retry without changing something. If the subagent said it's stuck, re-dispatching with identical context produces identical results.
-
-### Uncertainty Verification Dispatch
-
-When deterministic verification passes and `uncertainty_verification: true`, the calling agent must dispatch a clean-context verifier. This is a separate subagent with its own dispatch contract — DO NOT merge it into the debug dispatch.
-
-**Step 1: Write the verification brief.** Create `.superpowers/regression-guard/verify-brief-<case.id>.md`. Content (and NOTHING more):
-
-- `case.name` — what behavior is expected, in plain language
-- `case.command` — the exact CLI command to run
-- `case.expect.on` — expected exit code and stdout content
-- `case.execution_flow` — the steps the feature should follow
-
-**CRITICAL: What MUST NOT be in the brief:**
-- Implementation source code or file paths
-- Design documents, specs, or development discussion
-- The toggle mechanism details (the command string already includes the toggle)
-- Any information about HOW the feature is built
-
-If any of these leak into the brief, the verifier's judgment is contaminated. Write the brief, then re-read it — if a single file path or code snippet appears, delete it.
-
-**Step 2: Dispatch the subagent** using the template at [clean-context-verifier-prompt.md](clean-context-verifier-prompt.md). Fill the placeholders: `<case.id>`, `<case.name>`, `<BRIEF_FILE>`. The subagent receives ONLY the brief file — no other context about the project.
-
-**Step 3: Handle the verdict.**
-
-**PASS:** The verifier confirmed output quality. The case passes uncertainty verification. Mark in the progress ledger and continue.
-
-**FAIL:** The verifier found concrete issues in the output. The failure report includes verbatim actual output. NOW — and only now — expose implementation details to a debug subagent:
-
-1. Write a debug brief containing: the verifier's failure report (issues + verbatim output), the implementation code paths, and the fix contract
-2. Dispatch a debug subagent using [debug-dispatch-prompt.md](debug-dispatch-prompt.md)
-3. After fix, re-run uncertainty verification with a FRESH clean-context subagent (the previous verifier's context is contaminated)
-4. Loop until pass or 3 rounds total (verifier → debug → re-verify = 1 round)
-
-**Step 4: Clean up.** Delete the verification brief after the case passes. The report from the clean-context verifier is preserved in the debug report chain.
-
-### The 3-Round Hard Limit
-
-```
-Round 1: Failure → debug subagent → fix → re-verify
-Round 2: Still failure → debug subagent → fix → re-verify
-Round 3: Still failure → debug subagent → fix → re-verify
-Round 4: DOES NOT EXIST. STOP. Report to human partner.
-```
-
-After 3 failed rounds on a single case, STOP the entire verification. Do not skip the case and continue with others. Do not "try one more thing." Report:
-- Which case failed
-- What was attempted in each round
-- Current state (what's still wrong)
-- Ask your human partner for a decision
-
-**If 3 rounds fail on 2+ different cases:** question whether the verification approach itself is sound. The problem may be in how cases are defined, not in the code.
-
-## Model Selection
-
-Use the least powerful model that can handle each subagent role:
-
-| Subagent Role | Model Tier | Rationale |
-|---------------|------------|-----------|
-| **Debug (deterministic failure)** | Standard (e.g., sonnet) | Multi-step investigation: read code, trace logic, identify root cause, apply fix. Mid-tier floor — cheap models take 2-3× turns and miss root causes. |
-| **Debug (round 2+, same case)** | Standard or higher | Escalation: the first fix didn't work. Use same tier or upgrade if round 1 was on a cheap model. |
-| **Clean-context verifier** | Standard (e.g., sonnet) | Judgment task: evaluate output quality, tone, completeness. Not mechanical — requires independent assessment. |
-
-If the case is purely mechanical (one-line fix, misconfigured flag, wrong exit code), a cheap model is acceptable for round 1.
-
-**Always specify the model explicitly when dispatching.** An omitted model inherits your session's model — silently the most expensive — defeating this section.
-
-## Progress Ledger
-
-Conversation memory does not survive compaction. Track verification state in a ledger at `.superpowers/regression-guard/progress.md`.
-
-**At start of verification:**
-```bash
-cat "$(git rev-parse --show-toplevel)/.superpowers/regression-guard/progress.md" 2>/dev/null || echo "NO_LEDGER"
-```
-Cases listed there as verified are DONE — do not re-verify them. Resume at the first case not marked verified.
-
-**After a case passes (both deterministic and uncertainty):** append one line:
-```
-<case.id>: VERIFIED (rounds: <N>, toggle ON+OFF match, <uncertainty status>)
-```
-
-**After debug subagent fix lands:** append the fix commit range:
-```
-<case.id>: FIXED round <N> (commits <base7>..<head7>)
-```
-
-**After 3-round exhaustion on a case:** append:
-```
-<case.id>: EXHAUSTED after 3 rounds — human decision required
-```
-
-**After library write (current-feature mode):** append:
-```
-Library: written (<N> cases added, <M> updated) → regression/cases.json
-```
-
-The ledger is your recovery map after compaction. Trust it over your own recollection. `git clean -fdx` will destroy it (it's git-ignored scratch); if that happens, recover by re-running all cases.
+**If `regression/cases.json` does not exist:** skip and report. Do not fabricate cases.
 
 ## File Handoffs
 
-Every artifact crossing the subagent boundary goes through files, not pasted text. Pasting bulk content into your dispatch pollutes your context permanently — every later turn re-reads it.
+Every artifact crossing the subagent boundary goes through files. You never paste bulk content into dispatch prompts — it stays in your context forever.
 
 | Artifact | Format | Path Pattern | Lifecycle |
 |----------|--------|-------------|-----------|
-| Debug brief | Markdown | `.superpowers/regression-guard/debug-brief-<case.id>-round<N>.md` | Written before dispatch; deleted after verification completes for that case |
-| Debug report | Markdown | `.superpowers/regression-guard/debug-report-<case.id>-round<N>.md` | Written by subagent; retained until case passes (reference for re-verification) |
-| Progress ledger | Plain text | `.superpowers/regression-guard/progress.md` | Persistent across the verification session; survives compaction |
+| Verification brief | Markdown | `.superpowers/regression-guard/verify-brief-<case.id>.md` | Written before dispatching runner; deleted after case passes |
+| Verification report | Markdown | `.superpowers/regression-guard/verify-report-<case.id>.md` | Written by runner; retained until case passes |
+| Debug brief | Markdown | `.superpowers/regression-guard/debug-brief-<case.id>-round<N>.md` | Written before dispatching debug; deleted after case passes |
+| Debug report | Markdown | `.superpowers/regression-guard/debug-report-<case.id>-round<N>.md` | Written by debugger; retained until case passes |
+| Progress ledger | Plain text | `.superpowers/regression-guard/progress.md` | Persistent across session; survives compaction |
+
+## Dispatching the Verification Runner
+
+For each case, dispatch a fresh subagent. **You never run the CLI commands yourself.**
+
+**Step 1: Write the verification brief.** Create `.superpowers/regression-guard/verify-brief-<case.id>.md`. Content: the case's `command`, `toggle`, `expect.on`, `expect.off`. This is the subagent's single source of truth.
+
+**Step 2: Dispatch the subagent** using the template at [verification-runner-prompt.md](verification-runner-prompt.md). Fill placeholders: `<case.id>`, `<case.name>`, `<BRIEF_FILE>`, `<REPORT_FILE>`. Use the cheapest model tier — this is mechanical execution and string comparison, not judgment.
+
+**Step 3: Read the report.** The runner returns PASS or FAIL with a structured report at `<REPORT_FILE>`. Read the report file — do NOT re-run the CLI command yourself to "double check." The runner's report IS your evidence.
+
+**Step 4: Route the verdict.**
+
+- **PASS** — Record in progress ledger, continue to next case (or uncertainty verification if needed)
+- **FAIL** — The report contains exact mismatches (expected vs actual for each field). Route these to a debug subagent.
+
+## Dispatching the Debug Fixer
+
+Triggered when a verification runner returns FAIL.
+
+<HARD-GATE>
+You MUST dispatch a fresh debug subagent. You are a coordinator — you never read the implementation code, you never run the CLI commands yourself. The runner's report tells you WHAT failed. The debug subagent figures out WHY and fixes it.
+</HARD-GATE>
+
+**Step 1: Write the debug brief.** Create `.superpowers/regression-guard/debug-brief-<case.id>-round<N>.md`. Content: the runner's full verification report (mismatches, actual output, expected values), the full case definition, and the fix contract.
+
+**Step 2: Dispatch** using [debug-dispatch-prompt.md](debug-dispatch-prompt.md). Fill all placeholders. Choose model per Model Selection below.
+
+**Step 3: Verify the fix.** After the subagent returns, confirm the report contains fix verification evidence (commands run, output observed, exit codes for both toggle states). If missing, send it back.
+
+**Step 4: Re-dispatch a FRESH verification runner** for the same case. Do NOT use the previous runner — its context knows about the failure. A fresh runner approaches the case with naive eyes, just like the first time.
+
+**Step 5: If runner still returns FAIL, that's round 2.** Loop until PASS or 3 rounds total.
+
+## Handling Debug Subagent Status
+
+Debug subagents report one of three statuses:
+
+**DONE:** Fix applied and verified. Confirm the report has all three evidence items. Re-dispatch verification runner to confirm.
+
+**DONE_WITH_CONCERNS:** Fix works but subagent flagged doubts. Read concerns. If they suggest the case expectations may be wrong (not the code), escalate to human partner. Otherwise, re-dispatch verification runner and note concerns in progress ledger.
+
+**BLOCKED:** Cannot determine root cause or fix. Assess:
+1. Context insufficient → provide more context, re-dispatch with same model
+2. Task needs more reasoning → re-dispatch with stronger model
+3. Case expectations may be wrong → escalate to human: "code produces X, case expects Y — which governs?"
+4. Uncertain → escalate with full report
+
+## Uncertainty Verification Dispatch
+
+When deterministic verification passes and `uncertainty_verification: true`, dispatch a clean-context verifier.
+
+**Step 1: Write the verification brief.** Create `.superpowers/regression-guard/verify-brief-<case.id>.md`. Content (and NOTHING more): `case.name`, `case.command`, `case.expect.on`, `case.execution_flow`. **MUST NOT contain:** implementation code, file paths, design docs, toggle mechanism details.
+
+**Step 2: Dispatch** using [clean-context-verifier-prompt.md](clean-context-verifier-prompt.md). Subagent receives ONLY the brief file.
+
+**Step 3: Handle verdict.**
+
+- **PASS** — Record in progress ledger, continue
+- **FAIL** — Dispatch debug fixer (the failure report includes verbatim actual output → route to debug). After fix, re-dispatch a FRESH clean-context verifier. Loop until pass or 3 rounds.
+
+## The 3-Round Hard Limit
+
+```
+Round 1: Runner FAIL → debug fixer → runner PASS? → PASS
+Round 2: Still FAIL → debug fixer → runner PASS? → PASS  
+Round 3: Still FAIL → debug fixer → runner PASS? → PASS
+Round 4: DOES NOT EXIST. STOP. Report to human partner.
+```
+
+After 3 failed rounds on a single case, STOP. Report: which case, what was attempted each round, current state, ask for decision. **If 3 rounds fail on 2+ cases:** the problem may be in case expectations, not code.
+
+## Model Selection
+
+Use the least powerful model for each role:
+
+| Subagent Role | Model Tier | Rationale |
+|---------------|------------|-----------|
+| **Verification runner** | Cheapest available | Mechanical: run commands, check strings. No judgment, no code reading. |
+| **Debug fixer (round 1)** | Standard (e.g., sonnet) | Multi-step: read code, trace logic, find root cause, apply fix. |
+| **Debug fixer (round 2+)** | Standard or higher | Escalation: first fix didn't work. Upgrade if round 1 used cheap model. |
+| **Clean-context verifier** | Standard (e.g., sonnet) | Judgment task: evaluate output quality, tone, completeness. |
+
+**Always specify the model explicitly.** Omitted = inherits session's most expensive model.
+
+## Progress Ledger
+
+Track at `.superpowers/regression-guard/progress.md`. Check at start. Trust the ledger over memory after compaction.
+
+```
+# After case passes:
+<case.id>: VERIFIED (rounds: <N>)
+
+# After each fix:
+<case.id>: FIXED round <N> (commits <base7>..<head7>)
+
+# After exhaustion:
+<case.id>: EXHAUSTED after 3 rounds — human decision required
+
+# After library write:
+Library: written (<N> added, <M> updated) → regression/cases.json
+```
 
 ## Case Library Operations
 
-### Library Path
-
-Default: `regression/cases.json` at the project root.
-
-If the project uses a different path, it is specified during brainstorming and carried through the case definition.
+### Path: `regression/cases.json` (configurable)
 
 ### Schema Validation
 
-The case library and feature-level case files MUST validate against `skills/regression-guard/case-schema.json`. Before processing any case file, validate it against the schema. If validation fails, report the specific validation errors and stop — do not execute commands from an invalid case file.
+MUST validate against `skills/regression-guard/case-schema.json` before processing any case file.
 
 ### Write Logic (Current Feature Verification only)
 
 ```
-For each case in the just-verified feature set:
-  If case.id exists in library:
-    If case.expect changed → UPDATE the entry
-    If case.expect unchanged → SKIP (no-op)
-  Else:
-    APPEND case to library's cases array
+For each verified case:
+  case.id not in library → APPEND
+  case.id exists, expect changed → UPDATE
+  case.id exists, expect unchanged → SKIP
 ```
 
-Never delete cases from the library. Never reorder cases. Append-only with in-place updates for changed expectations.
+Append-only with in-place updates. Never delete. Never reorder. **Write failure = BLOCKED.**
 
 ### Case JSON Format
-
-Each case file (current feature or accumulated library) uses this structure:
 
 ```json
 {
@@ -381,20 +306,12 @@ Each case file (current feature or accumulated library) uses this structure:
       "execution_flow": [
         "1. Parse --email argument",
         "2. Check FEATURE_EMAIL_VALIDATION toggle",
-        "3. If ON: execute email format validation, return valid",
-        "4. If OFF: skip validation, return not available"
+        "3. If ON: validate and return result",
+        "4. If OFF: skip and return not available"
       ],
       "expect": {
-        "on": {
-          "exit_code": 0,
-          "stdout_contains": ["valid"],
-          "stderr_empty": true
-        },
-        "off": {
-          "exit_code": 1,
-          "stdout_contains": ["not available"],
-          "stderr_empty": true
-        }
+        "on":  { "exit_code": 0, "stdout_contains": ["valid"], "stderr_empty": true },
+        "off": { "exit_code": 1, "stdout_contains": ["not available"], "stderr_empty": true }
       },
       "uncertainty_verification": false
     }
@@ -402,112 +319,50 @@ Each case file (current feature or accumulated library) uses this structure:
 }
 ```
 
-**Feature-level file** (from brainstorming) may also include a top-level `feature` and `toggle` field. The library strips these — only `version` and `cases` are stored.
-
-**Field reference:**
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `id` | Yes | Unique key. Same `id` = same case across updates. |
-| `name` | Yes | Human-readable description of what is being verified. |
-| `command` | Yes | CLI command to execute. Shell-parseable string. |
-| `toggle` | Yes | Environment variable name that gates the feature (e.g., `FEATURE_EMAIL_VALIDATION`). |
-| `trigger_condition` | Yes | Exact condition that triggers the behavior; boundary specification. |
-| `execution_flow` | Yes | Ordered execution steps showing intermediate states. |
-| `expect.on` | Yes | Expected result when toggle is ON (TOGGLE=1). |
-| `expect.off` | Yes | Expected result when toggle is OFF (TOGGLE=0). |
-| `uncertainty_verification` | Yes | Whether clean-context verification subagent is needed. |
-
 ## Comparison Rules
 
-Three comparison operators are available. All must match for a verification to pass.
+These are implemented by the verification runner subagent. You (the coordinator) read the runner's report — you do not re-compare yourself.
 
-### `exit_code`
-
-Exact integer match. `0` means success, non-zero means the exit code the command should produce.
-
-```
-Expected: { "exit_code": 0 }
-Actual: exit code 0 → MATCH
-Actual: exit code 1 → MISMATCH
-```
-
-### `stdout_contains`
-
-Array of strings. **Every** string must appear as a substring in stdout. Order does not matter. This is substring matching, not exact matching — stdout may contain timestamps, color codes, or other dynamic content.
-
-```
-Expected: { "stdout_contains": ["valid", "accepted"] }
-Actual stdout: "Email is valid and accepted" → MATCH (both substrings found)
-Actual stdout: "Email is valid" → MISMATCH ("accepted" not found)
-Actual stdout: "VALID" → MISMATCH ("valid" not found — case-sensitive substring)
-```
-
-**Case-sensitive.** Use exact strings. If the command supports `--plain` or `--no-color` to strip ANSI codes, prefer that in the command definition.
-
-When no stdout content is expected, use an empty array: `"stdout_contains": []`.
-
-### `stderr_empty`
-
-Boolean. When `true`, stderr must be completely empty (zero bytes). When `false`, stderr content is ignored.
-
-```
-Expected: { "stderr_empty": true }
-Actual: stderr is "" → MATCH
-Actual: stderr is "warning: deprecation" → MISMATCH
-```
+| Rule | How |
+|------|-----|
+| `exit_code` | Exact integer match |
+| `stdout_contains` | Every string must appear as a case-sensitive substring in stdout |
+| `stderr_empty` | When `true`, stderr must be zero bytes |
 
 ## Project Type Gating
 
-Regression verification applies **only to code projects.** A code project is one whose primary artifact is an executable program, service, library with a CLI, or similar runnable software.
-
-**Skip regression verification entirely when:**
-- The project produces documentation, design specs, or prose
-- The project has no CLI entry points
-- The project is a plugin that does not expose runnable commands
-
-The calling skill (`subagent-driven-development` or `finishing-a-development-branch`) is responsible for determining project type before invoking this skill. If this skill is invoked for a non-code project, report the error to your human partner — a gate upstream failed.
+Regression verification applies **only to code projects** (primary artifact is an executable or service). Skip for documentation, design specs, libraries without CLI, or plugins without runnable commands. The calling skill determines project type.
 
 ## Common Rationalizations
 
 | Excuse | Reality |
 |--------|---------|
-| "This case is too simple to fail" | Simple cases catch the most regressions. Run it. |
-| "I already tested this manually" | Manual memory ≠ fresh execution. Run the command. |
-| "The change couldn't affect this case" | You don't know what you broke until you run it. |
-| "3 rounds is enough to skip one case" | The limit is per case. No case is exempt. |
-| "Just skip this one and continue" | Skipping one = skipping all. The loop doesn't continue past failure. |
-| "I'll add the case to the library later" | Later never happens. Write on pass or report why not. |
-| "The toggle is always on in this environment" | Then OFF verification will fail honestly. That's evidence, not a reason to skip. |
-| "This project doesn't need regression" | If it's a code project with CLI, it needs regression. No exceptions. |
-| "I can fix this myself — it's faster" | You are the judge, not the fixer. Dispatch a subagent. Fixing inline contaminates your judgment. |
-| "This is just a one-line change" | One line or one hundred — dispatch. A fresh subagent reads the code with naive eyes. |
-| "I already know what's wrong" | Knowing and verifying are different. Let the subagent confirm and fix. |
+| "This case is too simple to fail" | Simple cases catch the most regressions. Dispatch the runner. |
+| "I already tested this manually" | Manual memory ≠ fresh execution. Dispatch the runner. |
+| "The change couldn't affect this case" | You don't know until the runner runs it. |
+| "3 rounds is enough to skip one case" | No case is exempt. |
+| "Just skip this one and continue" | Skipping one = skipping all. |
+| "I'll add the case to the library later" | Later never happens. Write on pass. |
+| "The toggle is always on in this environment" | Then OFF will fail honestly. That's evidence. |
+| "This project doesn't need regression" | If it's a code project with CLI, it needs regression. |
+| "I can run this command myself — faster" | You are a coordinator. Running CLI yourself defeats the purpose. |
 
 ## Red Flags — STOP
 
-If you catch yourself thinking any of these, STOP. You are about to violate the regression guard:
-
+- **Running a CLI command yourself** instead of dispatching a verification runner (you are a coordinator, not an executor)
+- **Reading implementation code** after a runner reports FAIL (route to debug subagent instead)
+- **Fixing code yourself** instead of dispatching a debug subagent
+- **Re-running a command to "double check"** the runner's report (the report IS your evidence)
 - **Skipping a case** because it "always passes"
-- **Running fewer than both** ON and OFF for a case
-- **Accepting a partial match** on stdout_contains
-- **Rounding exit codes** (0 = success, anything else = "non-zero" but ignoring the specific value)
-- **"The output looks right"** without checking every stdout_contains substring
-- **Skipping stderr check** when stderr_empty is true
+- **Running fewer than both** ON and OFF states
+- **Accepting a runner report** that's missing actual output
+- **Accepting a debug report** without fix verification evidence
 - **Attempting round 4** of debug-fix on any case
 - **Writing to the case library** during Full Regression mode
-- **Invoking this skill standalone** instead of through the proper gate
-- **Fabricating regression cases** when `regression/cases.json` doesn't exist for Full Regression
-- **Running verification on a non-code project** (upstream gate failed — report it)
-- **Claiming "all pass"** without running every case fresh in this session
-- **Pasting failure details into the dispatch prompt** instead of writing a debug brief file (file handoff is not optional — your context is finite)
-- **Accepting a debug subagent report** without verifying it contains: fix verification commands run, output observed, exit codes for both toggle states
-- **Skipping the progress ledger** (after compaction you will not remember what passed)
-- **Fixing the failure yourself** instead of dispatching a debug subagent (you are the judge, not the fixer — Second Iron Law)
-- **Thinking "this is too simple to need a subagent"** (every fix gets a fresh subagent, no exceptions)
-- **Writing the fix and then verifying it yourself** (you cannot judge output you just made the code produce — this is why the subagent exists)
-
-**All of these mean: STOP. Re-read the Iron Law. Run every case, check every expectation, or report honestly that you cannot.**
+- **Invoking this skill standalone**
+- **Fabricating regression cases**
+- **Skipping the progress ledger**
+- **Claiming "all pass"** without every case verified by a fresh runner subagent
 
 ## Integration
 
@@ -515,32 +370,34 @@ If you catch yourself thinking any of these, STOP. You are about to violate the 
 
 | Skill | At This Point |
 |-------|---------------|
-| `subagent-driven-development` | After implementation + spec review + quality review pass, after human gate confirms "enter verification phase" |
-| `finishing-a-development-branch` | Before merge/PR, as the full regression gate |
+| `subagent-driven-development` | After implementation + reviews pass, human gate confirms |
+| `finishing-a-development-branch` | Before merge/PR |
 
 ### Dispatches
 
-| Skill | When |
-|-------|------|
-| `systematic-debugging` | Any case fails deterministic verification — dispatched as subagent to find root cause and fix |
-| `clean-context-verification` | Case has `uncertainty_verification: true` — dispatched as subagent for independent judgment |
+| Subagent | Template | When |
+|----------|----------|------|
+| Verification runner | `verification-runner-prompt.md` | Every case — runs CLI, compares output |
+| Debug fixer | `debug-dispatch-prompt.md` | Runner returns FAIL — finds root cause, fixes code |
+| Clean-context verifier | `clean-context-verifier-prompt.md` | `uncertainty_verification: true` — judges output quality with zero implementation knowledge |
 
 ### Case File Contract
 
 | File | Produced By | Consumed By |
 |------|-------------|-------------|
-| Feature `regression-cases.json` | `brainstorming` | `regression-guard` (Current Feature Verification mode) |
-| `regression/cases.json` (library) | `regression-guard` (writes on pass) | `regression-guard` (Full Regression mode) |
+| Feature `regression-cases.json` | `brainstorming` | `regression-guard` (Current Feature Verification) |
+| `regression/cases.json` (library) | `regression-guard` (writes on pass) | `regression-guard` (Full Regression) |
 
 ## Prompt Templates
 
+- [verification-runner-prompt.md](verification-runner-prompt.md) — Dispatch verification runner to execute CLI commands
 - [debug-dispatch-prompt.md](debug-dispatch-prompt.md) — Dispatch debug subagent on verification failure
 - [clean-context-verifier-prompt.md](clean-context-verifier-prompt.md) — Dispatch clean-context verifier for uncertainty verification
 
 ## The Bottom Line
 
-**Every CLI feature must prove it still works before merging.**
+**You are a coordinator. You never run CLI commands. You never read implementation code. You never fix anything.**
 
-Toggles ON and OFF. Every case. Every time. No shortcuts for "simple" cases, no skipping for "unrelated" changes, no round 4.
+Your job: write briefs, dispatch fresh subagents, read their reports, route verdicts. The subagents do the work. You keep the ledger and make the decisions.
 
-Run the commands. Check every expectation. Then — and only then — report the result.
+Every case, every time. No shortcuts. Toggles ON and OFF.
