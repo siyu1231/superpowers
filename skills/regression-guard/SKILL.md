@@ -56,34 +56,69 @@ ALL cases passed → write to regression/cases.json
 3. Write and re-read to verify
 4. **Write failure = BLOCKED.** Cases verified but NOT persisted — fix the write error, do not proceed without a written library.
 
+## Dispatch Conventions
+
+Every "dispatch" in this skill follows the same mechanics. The template files are Agent-call specifications — read them, fill them, call the Agent tool.
+
+**For each dispatch:**
+
+1. **Read the template file** — it contains the Agent parameters in `Subagent (type):` format
+2. **Replace every `<PLACEHOLDER>`** with the actual value — never leave a placeholder literal
+3. **Map to Agent tool call:**
+   - `Subagent (<type>):` → `subagent_type`
+   - `description:` → `description`
+   - `model:` → `model` (pick from Model Selection table below)
+   - `prompt: |` → `prompt`
+4. **Brief files are the subagent's input** — always Write the brief file BEFORE dispatching. The subagent reads it via its prompt's `<BRIEF_FILE>` reference
+5. **Report files are the subagent's output** — always Read the report file AFTER the subagent returns. The report IS your evidence; never "double check" by re-running commands yourself
+
+Never paste case content, failure details, or implementation code directly into a dispatch prompt. Write them to the brief file and pass only the file path.
+
 ## Dispatching Sub-agents
 
 ### Verification Runner
 
 For each case, dispatch a fresh subagent. Do NOT run CLI commands yourself.
 
-1. Write verification brief: `.superpowers/regression-guard/verify-brief-<case.id>.md` — content: `command`, `toggle`, `expect.on`, `expect.off`
-2. Dispatch using [verification-runner-prompt.md](verification-runner-prompt.md). Fill placeholders: `<case.id>`, `<case.name>`, `<BRIEF_FILE>`, `<REPORT_FILE>`
-3. Read report at `<REPORT_FILE>` — do NOT re-run CLI yourself to "double check." The runner's report IS your evidence
-4. Route: PASS → continue / FAIL → dispatch debug fixer
+1. **Write the brief:** `.superpowers/regression-guard/verify-brief-<case.id>.md`
+   Content: `command`, `toggle`, `expect.on`, `expect.off` — the subagent reads this as its single source of truth
+2. **Read the template:** [verification-runner-prompt.md](verification-runner-prompt.md)
+   Replace `<case.id>`, `<case.name>`, `<BRIEF_FILE>`, `<REPORT_FILE>` with actual values
+   Set `model:` from Model Selection table (cheapest tier — this is mechanical comparison)
+3. **Dispatch via Agent tool** using the filled template parameters
+4. **Read the report** at `<REPORT_FILE>` — this IS your evidence. Do NOT re-run CLI to "double check"
+5. **Route:** PASS → next case / FAIL → dispatch debug fixer (below)
 
 ### Debug Fixer
 
 Triggered when verification runner returns FAIL.
 
-1. Write debug brief: `.superpowers/regression-guard/debug-brief-<case.id>-round<N>.md` — content: runner's full report (mismatches, actual vs expected), full case definition, fix contract
-2. Dispatch using [debug-dispatch-prompt.md](debug-dispatch-prompt.md). Fill all placeholders
-3. Verify fix report contains: root cause, changes made, fix verification evidence (commands run, output, exit codes for BOTH toggle states). If missing → send back
-4. Re-dispatch a FRESH verification runner (never reuse previous runner — its context knows about the failure)
-5. Still FAIL → round 2. Loop until PASS or 3 rounds total
+1. **Write the debug brief:** `.superpowers/regression-guard/debug-brief-<case.id>-round<N>.md`
+   Content: the runner's full verification report (verbatim mismatches, actual vs expected), the complete case definition (command, toggle, execution_flow, both expect blocks), and the fix contract (re-run BOTH toggle states after fixing, confirm both match)
+2. **Read the template:** [debug-dispatch-prompt.md](debug-dispatch-prompt.md)
+   Replace `<BRIEF_FILE>`, `<REPORT_FILE>`, `<case.id>`, `<case.name>`, `<round_n>` with actual values
+   Set `model:` from Model Selection table
+3. **Dispatch via Agent tool** using the filled template parameters
+4. **Verify the fix report** at `<REPORT_FILE>` has all three evidence items:
+   - Root cause identified
+   - Changes made (files, line ranges, rationale)
+   - Fix verification: commands run (TOGGLE=0 AND TOGGLE=1), output observed, exit codes
+   If any item missing → send the subagent back with "report missing <item>, re-run and complete the report"
+5. **Re-dispatch a FRESH verification runner** for the same case. Never reuse the previous runner — its context knows about the failure. A fresh runner has naive eyes
+6. **Still FAIL?** → back to step 1 with round N+1. Loop until PASS or 3 rounds total
 
 ### Clean-Context Verifier
 
 Triggered when deterministic verification passes and `uncertainty_verification: true`.
 
-1. Write verification brief: `.superpowers/regression-guard/verify-brief-<case.id>.md` — content ONLY: `case.name`, `case.command`, `case.expect.on`, `case.execution_flow`. MUST NOT contain: implementation code, file paths, design docs, toggle mechanism details
-2. Dispatch using [clean-context-verifier-prompt.md](clean-context-verifier-prompt.md)
-3. Route: PASS → continue / FAIL → debug fixer → re-dispatch FRESH clean-context verifier → loop until pass or 3 rounds
+1. **Write the brief:** `.superpowers/regression-guard/verify-brief-<case.id>.md`
+   Content ONLY: `case.name`, `case.command`, `case.expect.on`, `case.execution_flow`
+   MUST NOT include: implementation code, file paths, design docs, toggle mechanism details — the subagent must judge output as a naive user would
+2. **Read the template:** [clean-context-verifier-prompt.md](clean-context-verifier-prompt.md)
+   Replace `<BRIEF_FILE>`, `<case.id>`, `<case.name>` with actual values
+   Set `model:` from Model Selection table (standard tier — this is a judgment task)
+3. **Dispatch via Agent tool** using the filled template parameters
+4. **Route:** PASS → continue / FAIL → dispatch debug fixer → re-dispatch FRESH clean-context verifier → loop until pass or 3 rounds
 
 ## Routing Debug Status
 
