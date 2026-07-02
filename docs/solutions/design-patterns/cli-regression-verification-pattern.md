@@ -37,13 +37,12 @@ AI-driven development spends most of its time on manual testing verification. Ex
 The verification system consists of two new skills and three enhancements to existing skills:
 
 **New skills:**
-- `regression-guard` — CLI verification engine called at two gated checkpoints
+- `regression-guard` — CLI verification engine called at the SDD verification gate
 - `clean-context-verification` — Uncertainty verification dispatched by regression-guard
 
 **Enhanced skills:**
 - `brainstorming` — Produces regression case JSON alongside design spec
 - `subagent-driven-development` — Verification gate after all tasks complete
-- `finishing-a-development-branch` — Full regression gate before merge/PR
 
 ### Regression Case Format (JSON)
 
@@ -83,11 +82,9 @@ Use environment variables as the toggle mechanism: `FEATURE_X=1` enables, `FEATU
 
 CLI requirement and regression verification apply only to **code projects** (primary deliverable is an executable program or service). Non-code projects (documentation, design specs, library-only packages) skip verification entirely. The heuristic: "does the project's primary deliverable run as a process?"
 
-### Two-Mode Verification
+### Verification Process
 
-The regression-guard skill operates in two modes:
-1. **Current Feature Verification** — triggered after SDD implementation. Reads the feature's regression-cases.json. On pass: writes cases into the library. On failure: dispatches debug subagent, re-verifies (max 3 rounds).
-2. **Full Regression** — triggered during finishing. Reads the accumulated library. Verifies all cases. Does NOT write to library.
+Regression-guard is triggered after SDD implementation. It reads the feature's `regression-cases.json`, verifies each case, and on pass: writes cases into the accumulated library at `regression/cases.json`. On failure: dispatches debug subagent, re-verifies (max 3 rounds).
 
 ### Failure Recovery Loop
 
@@ -107,7 +104,7 @@ Without this pattern:
 
 With this pattern:
 - **Every feature ships with automated CLI verification cases**
-- **Case library accumulates over time** — full regression catches regressions
+- **Case library accumulates over time** — each feature adds its cases to the permanent library
 - **ON/OFF comparison proves toggle isolation**
 - **Clean-context verification catches what implementation-aware review misses**
 
@@ -127,10 +124,6 @@ In the design spec's Agent Verifiability section, each feature defines its CLI e
 ### SDD invokes verification gate
 
 After all implementation tasks complete and final review passes, SDD checks: is this a code project? If yes, present the human gate; if confirmed, run regression-guard in current-feature mode.
-
-### Finishing invokes full regression
-
-Before merge or PR, finishing checks: does `regression/cases.json` exist? If yes, run regression-guard in full-regression mode — all accumulated cases must pass.
 
 ## Related
 

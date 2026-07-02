@@ -171,7 +171,13 @@ Heuristic: does the project's primary deliverable run as a process? If yes → c
 
 ### Regression Cases (code projects only)
 
-For code projects, each feature MUST produce a `regression-cases.json` file alongside the design spec. Each case:
+For code projects, each feature MUST produce a `regression-cases.json` file alongside the design spec.
+
+**Cases must be real usage scenarios, not code tests.** The purpose is for AI to simulate a human actually using the feature through the CLI — the same way a real user would. This is NOT about testing code paths or internal logic. Each case must:
+
+- **Use realistic data:** For an upload feature, prepare a real test file in the expected format. For a search feature, use realistic search terms. For a config validation, use a config that resembles what users actually write.
+- **Simulate a human workflow:** The command in the case should be what a user would actually type, with real-world arguments and flags.
+- **Verify user-visible outcomes:** The expectations check what the user would see and care about, not internal state.
 
 ```json
 {
@@ -216,5 +222,5 @@ If they agree to the companion, read the detailed guide before proceeding:
 ## Related Skills
 
 - **superpowers:test-driven-development** — The three dimensions defined in Agent Verifiability become the test blueprint in TDD's RED phase.
-- **superpowers:regression-guard** — Runs the regression cases produced during brainstorming. Invoked after SDD implementation and during finishing.
+- **superpowers:regression-guard** — Runs the regression cases produced during brainstorming. Invoked after SDD implementation.
 - **superpowers:clean-context-verification** — Invoked by regression-guard when Uncertainty Verification is marked "Yes".
